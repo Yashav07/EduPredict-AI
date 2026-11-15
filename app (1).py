@@ -43,8 +43,81 @@ h1 {
 # LOAD AND TRAIN MACHINE LEARNING MODEL
 # -----------------------------------
 
+
 @st.cache_resource
 def train_model():
+
+    url = "https://archive.ics.uci.edu/static/public/320/student+performance.zip"
+
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+
+    with zipfile.ZipFile(BytesIO(response.content)) as z:
+
+        # Find the CSV even if it is inside a subfolder
+        csv_files = [
+            name for name in z.namelist()
+            if name.lower().endswith("student-mat.csv")
+        ]
+
+        if not csv_files:
+            raise FileNotFoundError(
+                "student-mat.csv was not found. "
+                "Available files: " + str(z.namelist())
+            )
+
+        with z.open(csv_files[0]) as f:
+            df = pd.read_csv(f, sep=";")
+
+    features = [
+        "age",
+        "studytime",
+        "failures",
+        "absences",
+        "G1",
+        "G2",
+        "sex",
+        "internet"
+    ]
+
+    X = df[features]
+    y = df["G3"]
+
+    numeric_features = [
+        "age", "studytime", "failures",
+        "absences", "G1", "G2"
+    ]
+
+    categorical_features = ["sex", "internet"]
+
+    preprocessor = ColumnTransformer([
+        ("numbers", "passthrough", numeric_features),
+        ("categories",
+         OneHotEncoder(handle_unknown="ignore"),
+         categorical_features)
+    ])
+
+    model = Pipeline([
+        ("preprocessor", preprocessor),
+        ("regressor", RandomForestRegressor(
+            n_estimators=200,
+            random_state=42
+        ))
+    ])
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    model.fit(X_train, y_train)
+
+    predictions = model.predict(X_test)
+
+    mae = mean_absolute_error(y_test, predictions)
+    r2 = r2_score(y_test, predictions)
+
+    return model, mae, r2, len(df)
+
 
     url = "https://archive.ics.uci.edu/static/public/320/student+performance.zip"
 
